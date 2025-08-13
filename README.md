@@ -29,7 +29,7 @@ const GEMINI_API_KEY = 'YOUR_ACTUAL_GEMINI_API_KEY_HERE';
 npm install -g vercel
 vercel --prod
 ```
-
+f
 ### 4. Configure Meta Webhook
 1. Go to [Meta for Developers](https://developers.facebook.com/)
 2. Select your WhatsApp app
