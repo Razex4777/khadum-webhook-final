@@ -5,7 +5,7 @@
   "main": "api/webhook.js",
   "scripts": {
     "dev": "vercel dev",
-    "build": "echo 'Building serverless functions...'",
+    "build": "echo 'No build step required for serverless functions'",
     "deploy": "vercel --prod"
   },
   "dependencies": {
