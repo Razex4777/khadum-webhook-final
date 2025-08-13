@@ -136,10 +136,10 @@ const GEMINI_CONFIG = {
       }
     ],
     generationConfig: {
-      temperature: 0.8,
-      topK: 20,
-      topP: 0.8,
-      maxOutputTokens: 500, // Shorter responses for speed
+      temperature: 0.7,
+      topK: 10,
+      topP: 0.7,
+      maxOutputTokens: 300, // Even shorter for speed
     },
   }
 };

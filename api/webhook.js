@@ -130,7 +130,7 @@ async function handleAIConversation(from, content, name) {
         contents: conversationContext,
       }),
       new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Timeout')), CONFIG.gemini.timeout)
+        setTimeout(() => reject(new Error('Timeout')), 4000) // Reduced to 4 seconds
       )
     ]);
     
@@ -194,8 +194,9 @@ module.exports = async (req, res) => {
         <p>✅ Powered by Google Gemini AI</p>
         <p>🧠 Human-like conversations</p>
         <p>🚀 Ready for intelligent WhatsApp conversations!</p>
-        <p>⚡ Speed optimized - 8 second timeout</p>
+        <p>⚡ Speed optimized - 4 second timeout</p>
         <p>🔧 No .env files - All config in code</p>
+        <p>🔥 Auto-warming enabled</p>
         <p>Verify URL: <code>?hub.mode=subscribe&hub.verify_token=${VERIFY_TOKEN}&hub.challenge=123</code></p>
       `);
     }
