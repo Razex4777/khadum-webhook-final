@@ -128,7 +128,7 @@ const KHADUM_SYSTEM_PROMPT = `أنت "خدوم" - المساعد الذكي لم
 تذكر: أنت ممثل منصة خدوم، فكن مهنياً وودوداً ومفيداً دائماً! 🌟`;
 
 const GEMINI_CONFIG = {
-  model: 'gemini-2.5-flash-lite',
+  model: 'gemini-2.0-flash-lite',
   config: {
     systemInstruction: [
       {

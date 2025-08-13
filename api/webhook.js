@@ -133,6 +133,7 @@ async function handleAIConversation(from, content, name) {
     ];
     
     // Generate AI response with Gemini (faster non-streaming)
+    console.log(`🤖 Calling Gemini API for ${from}...`);
     const response = await Promise.race([
       ai.models.generateContent({
         model: GEMINI_CONFIG.model,
@@ -140,9 +141,11 @@ async function handleAIConversation(from, content, name) {
         contents: conversationContext,
       }),
       new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Timeout')), 4000) // Reduced to 4 seconds
+        setTimeout(() => reject(new Error('Gemini API Timeout')), 4000) // Reduced to 4 seconds
       )
     ]);
+    
+    console.log(`✅ Gemini API responded for ${from}`);
     
     let aiResponse = response.response?.text() || '';
     
@@ -170,13 +173,21 @@ async function handleAIConversation(from, content, name) {
     userSessions.set(from, session);
     
     // Send AI response
+    console.log(`📤 Sending AI response to ${from}: "${aiResponse.substring(0, 50)}..."`);
     await sendMessage(from, aiResponse);
     
     console.log(`✅ AI Response sent to ${from}`);
     
   } catch (error) {
     console.error('❌ Error in AI conversation:', error);
-    
+    console.error('❌ Error details:', {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+      from: from,
+      content: content
+    });
+
     // Quick fallback response based on keywords
     let fallbackResponse = `مرحباً ${name || 'بك'}! أنا خدوم 🤖\n\n`;
     
@@ -191,7 +202,18 @@ async function handleAIConversation(from, content, name) {
       fallbackResponse += 'كيف يمكنني مساعدتك؟ أخبرني عن الخدمة التي تحتاجها.';
     }
     
-    await sendMessage(from, fallbackResponse);
+    try {
+      await sendMessage(from, fallbackResponse);
+      console.log(`✅ Fallback response sent to ${from}`);
+    } catch (sendError) {
+      console.error('❌ Failed to send fallback message:', sendError);
+      console.error('❌ Send error details:', {
+        name: sendError.name,
+        message: sendError.message,
+        from: from,
+        fallbackResponse: fallbackResponse
+      });
+    }
   }
 }
 
