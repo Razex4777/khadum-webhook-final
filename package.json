@@ -1,0 +1,28 @@
+{
+  "name": "khadum-webhook-final",
+  "version": "1.0.0",
+  "description": "Smart WhatsApp webhook with Gemini AI for Khadum platform",
+  "main": "api/webhook.js",
+  "scripts": {
+    "dev": "vercel dev",
+    "build": "echo 'Building serverless functions...'",
+    "deploy": "vercel --prod"
+  },
+  "dependencies": {
+    "@google/genai": "^0.8.0",
+    "mime": "^4.0.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0"
+  },
+  "keywords": [
+    "whatsapp",
+    "webhook", 
+    "gemini",
+    "ai",
+    "khadum",
+    "freelancers"
+  ],
+  "author": "Khadum Team",
+  "license": "MIT"
+}

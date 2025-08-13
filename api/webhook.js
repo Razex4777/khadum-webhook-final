@@ -1,10 +1,19 @@
-// 🤖 KHADUM SMART WEBHOOK - Enhanced with Backend Logic!
+// 🤖 KHADUM AI WEBHOOK - Human-like conversations with Gemini!
+
+const { GoogleGenAI } = require('@google/genai');
+const { GEMINI_CONFIG } = require('./gemini-config');
 
 const VERIFY_TOKEN = 'khadum_webhook_verify_token_2024';
 const WABA_TOKEN = 'EAATfgB4Y7dIBPCRRxSGRCGVvZB8Wzxme7m8fU9jHiZBF49SlWzf7hqcHgZB7w08dYrz2GW2mQSDB7kaCvRsqd2bZCB4j6hFkamkx33tF5tc4JTE7HpbcFknZCMZCctXQVw5wKZBvGdW4Va9NeILGn0rpY95XNE9HhSPeZB1fEvl0ZCNWLVA4wdFQZAfwyHnvKHfqiprgZDZD';
 const PHONE_ID = '740099439185588';
+const GEMINI_API_KEY = 'AIzaSyCvR9UpA5fb2NE3hPXalClQECEl_K99J9Y';
 
-// In-memory session storage (for demo - use database in production)
+// Initialize Gemini AI
+const ai = new GoogleGenAI({
+  apiKey: GEMINI_API_KEY,
+});
+
+// Enhanced session storage with conversation history
 let userSessions = new Map();
 
 async function sendMessage(to, text) {
@@ -66,159 +75,92 @@ async function sendButtonMessage(to, text, buttons) {
   }
 }
 
-// Smart conversation handler inspired by your backend
-async function handleSmartConversation(from, content, name) {
-  console.log(`🧠 Smart processing for ${from}: "${content}"`);
+// 🧠 AI-powered conversation handler with Gemini
+async function handleAIConversation(from, content, name) {
+  console.log(`🤖 AI processing for ${from}: "${content}"`);
   
-  // Get or create user session
-  let session = userSessions.get(from) || {
-    state: 'initial',
-    data: {},
-    lastMessage: Date.now()
-  };
-  
-  const message = content.toLowerCase();
-  let response = '';
-  let buttons = null;
-  
-  // Smart conversation flow based on your backend logic
-  if (session.state === 'initial') {
-    // Greeting detection
-    if (message.includes('مرحبا') || message.includes('السلام') || message.includes('أهلا') || 
-        message.includes('hello') || message.includes('hi')) {
-      response = `مرحباً ${name || 'بك'} في خدوم! 🤖
-
-✨ أنا وسيطك الذكي لربطك بأفضل المستقلين في المملكة
-
-كيف يمكنني مساعدتك اليوم؟`;
-      
-      buttons = [
-        { id: 'need_service', title: '🎯 أحتاج خدمة' },
-        { id: 'join_freelancer', title: '💼 انضمام كمستقل' },
-        { id: 'help', title: '❓ مساعدة' }
-      ];
-      
-    } else if (message.includes('أبي') || message.includes('أحتاج') || message.includes('مطلوب') || 
-               message.includes('أريد')) {
-      // Service request detected
-      session.state = 'asking_service_type';
-      response = `ممتاز! أفهم أنك تحتاج خدمة مستقل.
-
-ما نوع الخدمة التي تحتاجها؟`;
-      
-      buttons = [
-        { id: 'design', title: '🎨 تصميم جرافيك' },
-        { id: 'programming', title: '💻 برمجة وتطوير' },
-        { id: 'writing', title: '✍️ كتابة ومحتوى' }
-      ];
-      
-    } else {
-      // Default welcome
-      response = `أهلاً وسهلاً بك في خدوم! 👋
-
-🤖 أنا بوت ذكي يساعدك في العثور على أفضل المستقلين
-
-يمكنك أن تقول:
-• "أحتاج مصمم جرافيك"
-• "أبي مطور تطبيقات"
-• "مطلوب كاتب محتوى"`;
+  try {
+    // Get or create user session with conversation history
+    let session = userSessions.get(from) || {
+      conversationHistory: [],
+      projectData: {},
+      lastMessage: Date.now()
+    };
+    
+    // Add user message to conversation history
+    session.conversationHistory.push({
+      role: 'user',
+      parts: [{ text: content }],
+      timestamp: Date.now()
+    });
+    
+    // Build conversation context for Gemini
+    const conversationContext = [
+      // Add user info context
+      {
+        role: 'user',
+        parts: [{
+          text: `اسمي: ${name || 'غير معروف'}\nرقم الهاتف: ${from}\n\nالرسالة: ${content}`
+        }]
+      }
+    ];
+    
+    // Add conversation history if exists
+    if (session.conversationHistory.length > 1) {
+      // Include last 10 messages for context
+      const recentHistory = session.conversationHistory.slice(-10);
+      conversationContext.unshift(...recentHistory.slice(0, -1)); // Exclude current message
     }
     
-  } else if (session.state === 'asking_service_type') {
-    // Handle service type selection
-    let serviceType = '';
-    if (message.includes('تصميم') || message.includes('design')) {
-      serviceType = 'تصميم جرافيك';
-    } else if (message.includes('برمجة') || message.includes('تطوير') || message.includes('programming')) {
-      serviceType = 'برمجة وتطوير';
-    } else if (message.includes('كتابة') || message.includes('محتوى') || message.includes('writing')) {
-      serviceType = 'كتابة ومحتوى';
+    // Generate AI response with Gemini
+    const response = await ai.models.generateContentStream({
+      model: GEMINI_CONFIG.model,
+      config: GEMINI_CONFIG.config,
+      contents: conversationContext,
+    });
+    
+    let aiResponse = '';
+    for await (const chunk of response) {
+      if (chunk.text) {
+        aiResponse += chunk.text;
+      }
     }
     
-    if (serviceType) {
-      session.data.serviceType = serviceType;
-      session.state = 'asking_budget';
-      
-      response = `رائع! اخترت: ${serviceType} ✅
-
-ما هي ميزانيتك المتوقعة لهذا المشروع؟
-
-مثال:
-• 500 ريال
-• 1000 ريال  
-• 2500 ريال`;
-      
-    } else {
-      response = `يرجى اختيار نوع الخدمة من الخيارات المتاحة:`;
-      buttons = [
-        { id: 'design', title: '🎨 تصميم جرافيك' },
-        { id: 'programming', title: '💻 برمجة وتطوير' },
-        { id: 'writing', title: '✍️ كتابة ومحتوى' }
-      ];
+    // Clean up response
+    aiResponse = aiResponse.trim();
+    
+    if (!aiResponse) {
+      aiResponse = 'عذراً، حدث خطأ في معالجة رسالتك. يرجى المحاولة مرة أخرى 🤖';
     }
     
-  } else if (session.state === 'asking_budget') {
-    // Extract budget from message
-    const budgetMatch = content.match(/(\d+)/);
-    if (budgetMatch) {
-      const budget = parseInt(budgetMatch[1]);
-      session.data.budget = budget;
-      session.state = 'asking_timeline';
-      
-      response = `الميزانية: ${budget} ريال ✅
-
-كم المدة الزمنية المطلوبة لإنجاز المشروع؟
-
-مثال:
-• 3 أيام
-• أسبوع واحد
-• أسبوعين`;
-      
-    } else {
-      response = `يرجى إدخال رقم الميزانية بوضوح.
-
-مثال: 500 ريال أو 1000 ريال`;
+    // Add AI response to conversation history
+    session.conversationHistory.push({
+      role: 'model',
+      parts: [{ text: aiResponse }],
+      timestamp: Date.now()
+    });
+    
+    // Keep only last 20 messages to prevent memory overflow
+    if (session.conversationHistory.length > 20) {
+      session.conversationHistory = session.conversationHistory.slice(-20);
     }
     
-  } else if (session.state === 'asking_timeline') {
-    session.data.timeline = content;
-    session.state = 'asking_description';
+    // Update session
+    session.lastMessage = Date.now();
+    userSessions.set(from, session);
     
-    response = `المدة الزمنية: ${content} ✅
-
-الآن، يرجى وصف المشروع بالتفصيل:
-
-مثال: "أحتاج تصميم لوجو لمطعم، الألوان المفضلة أزرق وذهبي، الاسم: مطعم الأصالة، النمط عصري"`;
+    // Send AI response
+    await sendMessage(from, aiResponse);
     
-  } else if (session.state === 'asking_description') {
-    session.data.description = content;
-    session.state = 'project_summary';
+    console.log(`✅ AI Response sent to ${from}`);
     
-    response = `📋 ملخص مشروعك:
-
-🔸 الخدمة: ${session.data.serviceType}
-🔸 الميزانية: ${session.data.budget} ريال
-🔸 المدة: ${session.data.timeline}
-🔸 الوصف: ${session.data.description}
-
-🚀 سيتم الآن البحث عن أفضل المستقلين المناسبين لمشروعك وسنتواصل معك قريباً!
-
-شكراً لاستخدامك منصة خدوم ✨`;
+  } catch (error) {
+    console.error('❌ Error in AI conversation:', error);
     
-    // Reset session for new conversation
-    session.state = 'initial';
-    session.data = {};
-  }
-  
-  // Update session
-  session.lastMessage = Date.now();
-  userSessions.set(from, session);
-  
-  // Send response
-  if (buttons) {
-    await sendButtonMessage(from, response, buttons);
-  } else {
-    await sendMessage(from, response);
+    // Fallback response
+    const fallbackResponse = `مرحباً ${name || 'بك'}! أنا خدوم، مساعدك الذكي في منصة خدوم 🤖\n\nأعتذر، أواجه مشكلة تقنية بسيطة. كيف يمكنني مساعدتك اليوم؟\n\n• أحتاج مصمم جرافيك\n• أبي مطور مواقع\n• مطلوب كاتب محتوى`;
+    
+    await sendMessage(from, fallbackResponse);
   }
 }
 
@@ -227,10 +169,10 @@ module.exports = async (req, res) => {
   if (req.method === 'GET') {
     if (!req.query['hub.mode']) {
       return res.status(200).send(`
-        <h1>🤖 KHADUM SMART WEBHOOK IS LIVE!</h1>
-        <p>✅ Enhanced with intelligent conversation flow</p>
-        <p>🧠 State management and button interactions</p>
-        <p>🚀 Ready for smart WhatsApp conversations!</p>
+        <h1>🤖 KHADUM AI WEBHOOK IS LIVE!</h1>
+        <p>✅ Powered by Google Gemini AI</p>
+        <p>🧠 Human-like conversations</p>
+        <p>🚀 Ready for intelligent WhatsApp conversations!</p>
         <p>Verify URL: <code>?hub.mode=subscribe&hub.verify_token=${VERIFY_TOKEN}&hub.challenge=123</code></p>
       `);
     }
@@ -292,7 +234,7 @@ module.exports = async (req, res) => {
           
           if (messageContent) {
             console.log(`💬 Processing: "${messageContent}"`);
-            await handleSmartConversation(from, messageContent, senderName);
+            await handleAIConversation(from, messageContent, senderName);
           }
         }
       }
