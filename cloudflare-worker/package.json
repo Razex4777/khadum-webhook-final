@@ -1,0 +1,9 @@
+{
+  "name": "khadum-whatsapp-worker",
+  "private": true,
+  "scripts": {
+    "dev": "npx wrangler dev",
+    "deploy": "npx wrangler deploy",
+    "tail": "npx wrangler tail --format pretty"
+  }
+}
