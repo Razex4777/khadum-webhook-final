@@ -132,29 +132,23 @@ async function handleAIConversation(from, content, name) {
       }
     ];
     
-    // Generate AI response with Gemini (correct API format!)
+    // Generate AI response with Gemini (OFFICIAL NPM FORMAT!)
     console.log(`🤖 Calling Gemini API for ${from}...`);
     const response = await Promise.race([
       ai.models.generateContent({
-        model: "gemini-2.0-flash-lite",
-        contents: conversationContext,
+        model: 'gemini-2.0-flash-001',
+        contents: `${require('./gemini-config').KHADUM_SYSTEM_PROMPT}\n\nاسمي: ${name || 'عميل'}\nالرسالة: ${content}`,
         config: {
-          thinkingConfig: {
-            thinkingBudget: 0, // Disable thinking for speed
-          },
           generationConfig: {
             temperature: 0.7,
             topK: 10,
             topP: 0.7,
             maxOutputTokens: 300,
-          },
-          systemInstruction: {
-            parts: [{ text: require('./gemini-config').KHADUM_SYSTEM_PROMPT }]
           }
         }
       }),
       new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Gemini API Timeout')), 8000) // Increased to 8 seconds
+        setTimeout(() => reject(new Error('Gemini API Timeout')), 10000) // 10 seconds
       )
     ]);
     
@@ -239,7 +233,7 @@ module.exports = async (req, res) => {
         <p>✅ Powered by Google Gemini AI</p>
         <p>🧠 Human-like conversations</p>
         <p>🚀 Ready for intelligent WhatsApp conversations!</p>
-        <p>⚡ Speed optimized - 8 second timeout</p>
+        <p>⚡ Speed optimized - 10 second timeout</p>
         <p>🔧 No .env files - All config in code</p>
         <p>🔥 Self-warming enabled (no cron needed)</p>
         <p>Verify URL: <code>?hub.mode=subscribe&hub.verify_token=${VERIFY_TOKEN}&hub.challenge=123</code></p>
