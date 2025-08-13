@@ -17,7 +17,7 @@ const CONFIG = {
   },
   supabase: {
     url: 'https://fegxpfdvrqywmwiobuer.supabase.co',
-    anon_key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZlZ3hwZmR2cnF5d213aW9idWVyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MjI3MjE3MDAsImV4cCI6MjAzODI5NzcwMH0.OoK3DYCNHVOOIzRCXkxJTSgfUlmO_MJNadAKFHZPMVY'
+    anon_key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZlZ3hwZmR2cnF5d213aW9idWVyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQyNTUzMDAsImV4cCI6MjA2OTgzMTMwMH0.xQSEBIWmZ0XmQCWv4x9NOWM0ViiN5EODzL4p_BeXCgQ'
   },
   app: {
     name: 'Khadum AI Webhook',
@@ -254,8 +254,8 @@ async function handleAIConversation(from, content, name) {
 }
 
 module.exports = async (req, res) => {
-  // Handle GET requests (webhook verification and status page)
-  if (req.method === 'GET') {
+  // Handle GET and HEAD requests (webhook verification, status page, and uptime monitoring)
+  if (req.method === 'GET' || req.method === 'HEAD') {
     if (!req.query['hub.mode']) {
       return res.status(200).send(`
         <h1>🤖 KHADUM AI WEBHOOK IS LIVE!</h1>
