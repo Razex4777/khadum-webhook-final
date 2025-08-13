@@ -3,10 +3,28 @@
 const { GoogleGenAI } = require('@google/genai');
 const { GEMINI_CONFIG } = require('./gemini-config');
 
-const VERIFY_TOKEN = 'khadum_webhook_verify_token_2024';
-const WABA_TOKEN = 'EAATfgB4Y7dIBPCRRxSGRCGVvZB8Wzxme7m8fU9jHiZBF49SlWzf7hqcHgZB7w08dYrz2GW2mQSDB7kaCvRsqd2bZCB4j6hFkamkx33tF5tc4JTE7HpbcFknZCMZCctXQVw5wKZBvGdW4Va9NeILGn0rpY95XNE9HhSPeZB1fEvl0ZCNWLVA4wdFQZAfwyHnvKHfqiprgZDZD';
-const PHONE_ID = '740099439185588';
-const GEMINI_API_KEY = 'AIzaSyCvR9UpA5fb2NE3hPXalClQECEl_K99J9Y';
+// 🔧 Configuration - All credentials in one place (no .env files!)
+const CONFIG = {
+  whatsapp: {
+    verify_token: 'khadum_webhook_verify_token_2024',
+    access_token: 'EAATfgB4Y7dIBPCRRxSGRCGVvZB8Wzxme7m8fU9jHiZBF49SlWzf7hqcHgZB7w08dYrz2GW2mQSDB7kaCvRsqd2bZCB4j6hFkamkx33tF5tc4JTE7HpbcFknZCMZCctXQVw5wKZBvGdW4Va9NeILGn0rpY95XNE9HhSPeZB1fEvl0ZCNWLVA4wdFQZAfwyHnvKHfqiprgZDZD',
+    phone_id: '740099439185588'
+  },
+  gemini: {
+    api_key: 'AIzaSyCvR9UpA5fb2NE3hPXalClQECEl_K99J9Y',
+    timeout: 8000
+  },
+  app: {
+    name: 'Khadum AI Webhook',
+    version: '1.0.0'
+  }
+};
+
+// Extract values for easy access
+const VERIFY_TOKEN = CONFIG.whatsapp.verify_token;
+const WABA_TOKEN = CONFIG.whatsapp.access_token;
+const PHONE_ID = CONFIG.whatsapp.phone_id;
+const GEMINI_API_KEY = CONFIG.gemini.api_key;
 
 // Initialize Gemini AI
 const ai = new GoogleGenAI({
@@ -94,37 +112,29 @@ async function handleAIConversation(from, content, name) {
       timestamp: Date.now()
     });
     
-    // Build conversation context for Gemini
+    // Build simplified conversation context for faster processing
     const conversationContext = [
-      // Add user info context
       {
         role: 'user',
         parts: [{
-          text: `اسمي: ${name || 'غير معروف'}\nرقم الهاتف: ${from}\n\nالرسالة: ${content}`
+          text: `اسمي: ${name || 'عميل'}\nالرسالة: ${content}\n\n${session.conversationHistory.length > 1 ? 'محادثة سابقة: ' + session.conversationHistory.slice(-2).map(h => h.parts[0]?.text).join(' | ') : ''}`
         }]
       }
     ];
     
-    // Add conversation history if exists
-    if (session.conversationHistory.length > 1) {
-      // Include last 10 messages for context
-      const recentHistory = session.conversationHistory.slice(-10);
-      conversationContext.unshift(...recentHistory.slice(0, -1)); // Exclude current message
-    }
+    // Generate AI response with Gemini (faster non-streaming)
+    const response = await Promise.race([
+      ai.models.generateContent({
+        model: GEMINI_CONFIG.model,
+        config: GEMINI_CONFIG.config,
+        contents: conversationContext,
+      }),
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Timeout')), CONFIG.gemini.timeout)
+      )
+    ]);
     
-    // Generate AI response with Gemini
-    const response = await ai.models.generateContentStream({
-      model: GEMINI_CONFIG.model,
-      config: GEMINI_CONFIG.config,
-      contents: conversationContext,
-    });
-    
-    let aiResponse = '';
-    for await (const chunk of response) {
-      if (chunk.text) {
-        aiResponse += chunk.text;
-      }
-    }
+    let aiResponse = response.response?.text() || '';
     
     // Clean up response
     aiResponse = aiResponse.trim();
@@ -157,8 +167,19 @@ async function handleAIConversation(from, content, name) {
   } catch (error) {
     console.error('❌ Error in AI conversation:', error);
     
-    // Fallback response
-    const fallbackResponse = `مرحباً ${name || 'بك'}! أنا خدوم، مساعدك الذكي في منصة خدوم 🤖\n\nأعتذر، أواجه مشكلة تقنية بسيطة. كيف يمكنني مساعدتك اليوم؟\n\n• أحتاج مصمم جرافيك\n• أبي مطور مواقع\n• مطلوب كاتب محتوى`;
+    // Quick fallback response based on keywords
+    let fallbackResponse = `مرحباً ${name || 'بك'}! أنا خدوم 🤖\n\n`;
+    
+    const msg = content.toLowerCase();
+    if (msg.includes('مرحبا') || msg.includes('السلام') || msg.includes('أهلا')) {
+      fallbackResponse += 'أهلاً وسهلاً بك في منصة خدوم! كيف يمكنني مساعدتك اليوم؟';
+    } else if (msg.includes('تصميم') || msg.includes('لوجو') || msg.includes('شعار')) {
+      fallbackResponse += 'ممتاز! لدينا مصممين محترفين. حدثني عن مشروعك أكثر.';
+    } else if (msg.includes('موقع') || msg.includes('تطبيق') || msg.includes('برمجة')) {
+      fallbackResponse += 'رائع! نوفر مطورين خبراء. ما نوع الموقع أو التطبيق المطلوب؟';
+    } else {
+      fallbackResponse += 'كيف يمكنني مساعدتك؟ أخبرني عن الخدمة التي تحتاجها.';
+    }
     
     await sendMessage(from, fallbackResponse);
   }
@@ -173,6 +194,8 @@ module.exports = async (req, res) => {
         <p>✅ Powered by Google Gemini AI</p>
         <p>🧠 Human-like conversations</p>
         <p>🚀 Ready for intelligent WhatsApp conversations!</p>
+        <p>⚡ Speed optimized - 8 second timeout</p>
+        <p>🔧 No .env files - All config in code</p>
         <p>Verify URL: <code>?hub.mode=subscribe&hub.verify_token=${VERIFY_TOKEN}&hub.challenge=123</code></p>
       `);
     }

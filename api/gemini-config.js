@@ -130,19 +130,16 @@ const KHADUM_SYSTEM_PROMPT = `أنت "خدوم" - المساعد الذكي لم
 const GEMINI_CONFIG = {
   model: 'gemini-2.5-flash-lite',
   config: {
-    thinkingConfig: {
-      thinkingBudget: 0,
-    },
     systemInstruction: [
       {
         text: KHADUM_SYSTEM_PROMPT,
       }
     ],
     generationConfig: {
-      temperature: 0.7,
-      topK: 40,
-      topP: 0.9,
-      maxOutputTokens: 1000,
+      temperature: 0.8,
+      topK: 20,
+      topP: 0.8,
+      maxOutputTokens: 500, // Shorter responses for speed
     },
   }
 };

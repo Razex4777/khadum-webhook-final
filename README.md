@@ -79,13 +79,11 @@ khadum-webhook-final/
 - `@google/genai` - Gemini AI SDK
 - `mime` - File type detection
 
-### Environment Variables
-```bash
-GEMINI_API_KEY=your_gemini_key
-WABA_TOKEN=your_whatsapp_token
-PHONE_ID=your_phone_number_id
-VERIFY_TOKEN=khadum_webhook_verify_token_2024
-```
+### Configuration
+All credentials are stored directly in the code files (no .env needed):
+- **`api/webhook.js`** - Contains CONFIG object with all credentials
+- **`config.yml`** - Optional YAML configuration file for reference
+- **No environment variables required** - Everything is hardcoded for simplicity
 
 ## 🧪 Testing
 
