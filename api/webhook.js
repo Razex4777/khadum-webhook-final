@@ -2,6 +2,7 @@
 
 const { GoogleGenAI } = require('@google/genai');
 const { GEMINI_CONFIG } = require('./gemini-config');
+const { createClient } = require('@supabase/supabase-js');
 
 // 🔧 Configuration - All credentials in one place (no .env files!)
 const CONFIG = {
@@ -13,6 +14,10 @@ const CONFIG = {
   gemini: {
     api_key: 'AIzaSyCvR9UpA5fb2NE3hPXalClQECEl_K99J9Y',
     timeout: 8000
+  },
+  supabase: {
+    url: 'https://fegxpfdvrqywmwiobuer.supabase.co',
+    anon_key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZlZ3hwZmR2cnF5d213aW9idWVyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MjI3MjE3MDAsImV4cCI6MjAzODI5NzcwMH0.OoK3DYCNHVOOIzRCXkxJTSgfUlmO_MJNadAKFHZPMVY'
   },
   app: {
     name: 'Khadum AI Webhook',
@@ -31,8 +36,8 @@ const ai = new GoogleGenAI({
   apiKey: GEMINI_API_KEY,
 });
 
-// Enhanced session storage with conversation history
-let userSessions = new Map();
+// Initialize Supabase
+const supabase = createClient(CONFIG.supabase.url, CONFIG.supabase.anon_key);
 
 // Self-warming mechanism (no cron needed!)
 let lastActivity = Date.now();
@@ -103,81 +108,123 @@ async function sendButtonMessage(to, text, buttons) {
   }
 }
 
-// 🧠 AI-powered conversation handler with Gemini
+// 🧠 Database functions for chat history
+async function getChatHistory(phone) {
+  try {
+    const { data, error } = await supabase
+      .from('chat_history')
+      .select('*')
+      .eq('whatsapp_phone', phone)
+      .single();
+    
+    if (error && error.code !== 'PGRST116') { // PGRST116 = not found
+      console.error('Error getting chat history:', error);
+      return null;
+    }
+    
+    return data;
+  } catch (error) {
+    console.error('Error in getChatHistory:', error);
+    return null;
+  }
+}
+
+async function saveChatHistory(phone, username, conversation) {
+  try {
+    const { data, error } = await supabase
+      .from('chat_history')
+      .upsert({
+        user_id: phone, // Using phone as user_id for simplicity
+        whatsapp_username: username,
+        whatsapp_phone: phone,
+        conversation: conversation
+      }, {
+        onConflict: 'whatsapp_phone'
+      })
+      .select()
+      .single();
+    
+    if (error) {
+      console.error('Error saving chat history:', error);
+      return false;
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('Error in saveChatHistory:', error);
+    return false;
+  }
+}
+
+// 🧠 AI-powered conversation handler with Gemini (PURE AI - NO KEYWORDS!)
 async function handleAIConversation(from, content, name) {
   console.log(`🤖 AI processing for ${from}: "${content}"`);
   
   try {
-    // Get or create user session with conversation history
-    let session = userSessions.get(from) || {
-      conversationHistory: [],
-      projectData: {},
-      lastMessage: Date.now()
-    };
+    // Get conversation history from database
+    const chatData = await getChatHistory(from);
+    let conversation = chatData?.conversation || [];
     
-    // Add user message to conversation history
-    session.conversationHistory.push({
+    // Add user message to conversation
+    const userMessage = {
       role: 'user',
-      parts: [{ text: content }],
-      timestamp: Date.now()
-    });
+      content: content,
+      timestamp: new Date().toISOString()
+    };
+    conversation.push(userMessage);
     
-    // Build simplified conversation context for faster processing
-    const conversationContext = [
-      {
-        role: 'user',
-        parts: [{
-          text: `اسمي: ${name || 'عميل'}\nالرسالة: ${content}\n\n${session.conversationHistory.length > 1 ? 'محادثة سابقة: ' + session.conversationHistory.slice(-2).map(h => h.parts[0]?.text).join(' | ') : ''}`
-        }]
-      }
-    ];
+    // Keep only last 20 messages
+    if (conversation.length > 20) {
+      conversation = conversation.slice(-20);
+    }
     
-    // Generate AI response with Gemini (OFFICIAL NPM FORMAT!)
+    // Build conversation context for Gemini
+    const recentHistory = conversation.slice(-6).map(msg => {
+      return `${msg.role === 'user' ? 'المستخدم' : 'خدوم'}: ${msg.content}`;
+    }).join('\n');
+    
+    const fullPrompt = `${require('./gemini-config').KHADUM_SYSTEM_PROMPT}\n\nاسم المستخدم: ${name || 'عميل'}\nرقم الهاتف: ${from}\n\nالمحادثة الحديثة:\n${recentHistory}\n\nالرسالة الحالية: ${content}`;
+    
+    // Generate AI response with Gemini (PURE AI ONLY!)
     console.log(`🤖 Calling Gemini API for ${from}...`);
     const response = await Promise.race([
       ai.models.generateContent({
         model: 'gemini-2.0-flash-001',
-        contents: `${require('./gemini-config').KHADUM_SYSTEM_PROMPT}\n\nاسمي: ${name || 'عميل'}\nالرسالة: ${content}`,
+        contents: fullPrompt,
         config: {
           generationConfig: {
-            temperature: 0.7,
-            topK: 10,
-            topP: 0.7,
-            maxOutputTokens: 300,
+            temperature: 0.8,
+            topK: 20,
+            topP: 0.9,
+            maxOutputTokens: 400,
           }
         }
       }),
       new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Gemini API Timeout')), 10000) // 10 seconds
+        setTimeout(() => reject(new Error('Gemini API Timeout')), 12000) // 12 seconds
       )
     ]);
     
     console.log(`✅ Gemini API responded for ${from}`);
     
     let aiResponse = response.text || '';
-    
-    // Clean up response
     aiResponse = aiResponse.trim();
     
+    // Only fallback if completely empty (no keywords!)
     if (!aiResponse) {
-      aiResponse = 'عذراً، حدث خطأ في معالجة رسالتك. يرجى المحاولة مرة أخرى 🤖';
+      aiResponse = 'أعتذر، لم أتمكن من معالجة رسالتك حالياً. يرجى المحاولة مرة أخرى.';
     }
     
-    // Add AI response to conversation history
-    session.conversationHistory.push({
-      role: 'model',
-      parts: [{ text: aiResponse }],
-      timestamp: Date.now()
-    });
+    // Add AI response to conversation
+    const aiMessage = {
+      role: 'assistant',
+      content: aiResponse,
+      timestamp: new Date().toISOString()
+    };
+    conversation.push(aiMessage);
     
-    // Keep only last 20 messages to prevent memory overflow
-    if (session.conversationHistory.length > 20) {
-      session.conversationHistory = session.conversationHistory.slice(-20);
-    }
-    
-    // Update session
-    session.lastMessage = Date.now();
-    userSessions.set(from, session);
+    // Save updated conversation to database
+    await saveChatHistory(from, name, conversation);
     
     // Send AI response
     console.log(`📤 Sending AI response to ${from}: "${aiResponse.substring(0, 50)}..."`);
@@ -190,36 +237,18 @@ async function handleAIConversation(from, content, name) {
     console.error('❌ Error details:', {
       name: error.name,
       message: error.message,
-      stack: error.stack,
       from: from,
       content: content
     });
 
-    // Quick fallback response based on keywords
-    let fallbackResponse = `مرحباً ${name || 'بك'}! أنا خدوم 🤖\n\n`;
-    
-    const msg = content.toLowerCase();
-    if (msg.includes('مرحبا') || msg.includes('السلام') || msg.includes('أهلا')) {
-      fallbackResponse += 'أهلاً وسهلاً بك في منصة خدوم! كيف يمكنني مساعدتك اليوم؟';
-    } else if (msg.includes('تصميم') || msg.includes('لوجو') || msg.includes('شعار')) {
-      fallbackResponse += 'ممتاز! لدينا مصممين محترفين. حدثني عن مشروعك أكثر.';
-    } else if (msg.includes('موقع') || msg.includes('تطبيق') || msg.includes('برمجة')) {
-      fallbackResponse += 'رائع! نوفر مطورين خبراء. ما نوع الموقع أو التطبيق المطلوب؟';
-    } else {
-      fallbackResponse += 'كيف يمكنني مساعدتك؟ أخبرني عن الخدمة التي تحتاجها.';
-    }
+    // MINIMAL fallback - no keywords, just error message
+    const errorResponse = 'أعتذر، حدث خطأ تقني. يرجى المحاولة مرة أخرى خلال دقيقة.';
     
     try {
-      await sendMessage(from, fallbackResponse);
-      console.log(`✅ Fallback response sent to ${from}`);
+      await sendMessage(from, errorResponse);
+      console.log(`✅ Error response sent to ${from}`);
     } catch (sendError) {
-      console.error('❌ Failed to send fallback message:', sendError);
-      console.error('❌ Send error details:', {
-        name: sendError.name,
-        message: sendError.message,
-        from: from,
-        fallbackResponse: fallbackResponse
-      });
+      console.error('❌ Failed to send error message:', sendError);
     }
   }
 }
@@ -233,9 +262,11 @@ module.exports = async (req, res) => {
         <p>✅ Powered by Google Gemini AI</p>
         <p>🧠 Human-like conversations</p>
         <p>🚀 Ready for intelligent WhatsApp conversations!</p>
-        <p>⚡ Speed optimized - 10 second timeout</p>
+        <p>⚡ Speed optimized - 12 second timeout</p>
         <p>🔧 No .env files - All config in code</p>
         <p>🔥 Self-warming enabled (no cron needed)</p>
+        <p>💾 Supabase chat history enabled</p>
+        <p>🧠 Pure AI responses - no keywords!</p>
         <p>Verify URL: <code>?hub.mode=subscribe&hub.verify_token=${VERIFY_TOKEN}&hub.challenge=123</code></p>
       `);
     }
