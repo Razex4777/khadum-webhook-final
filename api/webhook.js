@@ -34,6 +34,16 @@ const ai = new GoogleGenAI({
 // Enhanced session storage with conversation history
 let userSessions = new Map();
 
+// Self-warming mechanism (no cron needed!)
+let lastActivity = Date.now();
+setInterval(() => {
+  const now = Date.now();
+  if (now - lastActivity > 240000) { // 4 minutes of inactivity
+    console.log('🔥 Self-warming function...');
+    lastActivity = now;
+  }
+}, 60000); // Check every minute
+
 async function sendMessage(to, text) {
   try {
     const response = await fetch(`https://graph.facebook.com/v19.0/${PHONE_ID}/messages`, {
@@ -196,7 +206,7 @@ module.exports = async (req, res) => {
         <p>🚀 Ready for intelligent WhatsApp conversations!</p>
         <p>⚡ Speed optimized - 4 second timeout</p>
         <p>🔧 No .env files - All config in code</p>
-        <p>🔥 Auto-warming enabled</p>
+        <p>🔥 Self-warming enabled (no cron needed)</p>
         <p>Verify URL: <code>?hub.mode=subscribe&hub.verify_token=${VERIFY_TOKEN}&hub.challenge=123</code></p>
       `);
     }
@@ -212,6 +222,9 @@ module.exports = async (req, res) => {
   // Handle POST requests (incoming messages)
   if (req.method === 'POST') {
     try {
+      // Update activity tracker
+      lastActivity = Date.now();
+      
       const body = req.body || {};
       console.log('📥 Received webhook:', JSON.stringify(body, null, 2));
       
